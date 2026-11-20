@@ -32,6 +32,92 @@ jobs:
           npm run build-static
           touch dist/.nojekyll
 
+      - name: Make the first screen appear sooner
+        working-directory: app
+        run: |
+          cat > speedup.py <<'PY'
+          #!/usr/bin/env python3
+          """Post-process a Terbium static build to make the first screen appear sooner.
+
+          1. Drops the Google Tag Manager / Analytics scripts (two third-party requests
+             that are blocked or slow on filtered school networks).
+          2. Preloads the main module and the stylesheet so the browser starts fetching
+             them while it is still parsing the HTML.
+          3. Puts a lightweight "Starting Terbium" splash inside #root, which React
+             clears the moment it mounts, so the screen is never an empty black page
+             while ~2 MB of JavaScript arrives.
+
+          Usage: speedup.py <dist-directory>
+          """
+          import re
+          import sys
+          import pathlib
+
+          dist = pathlib.Path(sys.argv[1])
+          page = dist / "index.html"
+          if not page.is_file():
+              sys.exit(f"no index.html in {dist}")
+
+          html = page.read_text(encoding="utf-8")
+          before = len(html)
+
+          # 1. Analytics: comment, external script tag, and the inline gtag config block.
+          html = re.sub(r"\s*<!--\s*Google tag \(gtag\.js\)\s*-->", "", html)
+          html = re.sub(r'\s*<script[^>]*googletagmanager\.com[^>]*>\s*</script>', "", html)
+          html = re.sub(r"\s*<script>\s*window\.dataLayer.*?</script>", "", html, flags=re.S)
+
+          # 2. Resource hints for the two files that gate the first paint.
+          hints = []
+          mod = re.search(r'<script[^>]*type="module"[^>]*src="([^"]+)"', html)
+          stylesheet = re.search(r'<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"', html)
+          if mod:
+              hints.append(f'<link rel="modulepreload" href="{mod.group(1)}">')
+          if stylesheet:
+              hints.append(f'<link rel="preload" as="style" href="{stylesheet.group(1)}">')
+          if hints:
+              block = "\n    " + "\n    ".join(hints)
+              html = html.replace("</head>", block + "\n  </head>", 1)
+
+          # 3. Move the blocking /tfs/tfs.js script and the filesystem bootstrap from the
+          #    <head> to just after #root. A classic script in <head> blocks the first
+          #    paint, so the screen stays blank until it has downloaded; from the end of
+          #    the body it still runs before the deferred module, but the browser can
+          #    draw the page while it arrives.
+          tfs_tag = re.search(r'\s*<script src="/tfs/tfs\.js"></script>', html)
+          tfs_init = re.search(r'\s*<script>\s*\(async \(\) => \{.*?\}\)\(\);\s*</script>', html, re.S)
+          moved = ""
+          if tfs_tag and tfs_init:
+              moved = tfs_tag.group(0) + tfs_init.group(0)
+              html = html.replace(moved, "", 1)
+
+          # 4. Splash screen. It lives inside #root, so React's first render replaces it.
+          splash = (
+              '<div id="root" class="flex flex-col h-full bg-[#0e0e0e] overflow-hidden">'
+              '<div style="position:fixed;inset:0;display:flex;flex-direction:column;'
+              'align-items:center;justify-content:center;gap:16px;background:#0e0e0e;'
+              "color:#cfcfcf;font:600 15px/1.4 ui-sans-serif,system-ui,sans-serif;"
+              'letter-spacing:.04em">'
+              '<img src="/tb.svg" alt="" width="96" height="96" style="opacity:.9">'
+              "<div>Starting Terbium\u2026</div>"
+              "</div></div>"
+          )
+          html, swapped = re.subn(r'<div id="root"[^>]*>\s*</div>', splash, html, count=1)
+          if not swapped:
+              print("warning: #root placeholder not found, splash not added")
+
+          anchor = '<script src="/scram/scramjet.js"></script>'
+          if moved and anchor in html:
+              html = html.replace(anchor, moved.strip() + "\n    " + anchor, 1)
+          else:
+              print("warning: could not relocate the filesystem scripts")
+
+          page.write_text(html, encoding="utf-8")
+          print(f"index.html: {before} -> {len(html)} bytes")
+          print(f"preload hints: {len(hints)}  splash: {bool(swapped)}  fs scripts moved: {bool(moved)}")
+          PY
+          python3 speedup.py dist
+          grep -q "Starting Terbium" dist/index.html
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: app/dist
