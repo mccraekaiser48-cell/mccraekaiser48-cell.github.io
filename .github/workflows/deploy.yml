@@ -117,6 +117,8 @@ jobs:
           PY
           python3 speedup.py dist
           grep -q "Starting Terbium" dist/index.html
+          grep -rl 'allowInvalidJs:!1' dist/assets dist/scram | xargs -r sed -i 's/allowInvalidJs:!1/allowInvalidJs:!0/g'
+          sed -i 's/allowInvalidJs: false/allowInvalidJs: true/' dist/apps/settings.tapp/internet.tsl
 
       - uses: actions/upload-pages-artifact@v3
         with:
