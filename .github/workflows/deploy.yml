@@ -119,8 +119,6 @@ jobs:
           grep -q "Starting Terbium" dist/index.html
           grep -rl 'allowInvalidJs:!1' dist/assets dist/scram | xargs -r sed -i 's/allowInvalidJs:!1/allowInvalidJs:!0/g'
           sed -i 's/allowInvalidJs: false/allowInvalidJs: true/' dist/apps/settings.tapp/internet.tsl
-          sed -i 's/siteFlags:{}/siteFlags:{"play[.]geforcenow[.]com":{allowInvalidJs:!1}}/' dist/scram/scramjet.js dist/assets/*.js
-          grep -rlF 'play[.]geforcenow[.]com' dist/scram dist/assets || echo 'warning: GeForce NOW exemption not written'
 
       - uses: actions/upload-pages-artifact@v3
         with:
