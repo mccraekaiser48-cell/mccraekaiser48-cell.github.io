@@ -79,7 +79,7 @@ jobs:
               html = html.replace("</head>", block + "\n  </head>", 1)
 
           # 3. Move the blocking /tfs/tfs.js script and the filesystem bootstrap from the
-          #    &lt;head&gt; to just after #root. A classic script in &lt;head&gt; blocks the first
+          #    <head> to just after #root. A classic script in <head> blocks the first
           #    paint, so the screen stays blank until it has downloaded; from the end of
           #    the body it still runs before the deferred module, but the browser can
           #    draw the page while it arrives.
@@ -119,40 +119,8 @@ jobs:
           grep -q "Starting Terbium" dist/index.html
           grep -rl 'allowInvalidJs:!1' dist/assets dist/scram | xargs -r sed -i 's/allowInvalidJs:!1/allowInvalidJs:!0/g'
           sed -i 's/allowInvalidJs: false/allowInvalidJs: true/' dist/apps/settings.tapp/internet.tsl
-
-      - name: Keep GeForce NOW on the strict rewrite path
-        working-directory: app
-        run: |
-          python3 - <<'PY'
-          """Scramjet now falls back to serving un-rewritten JavaScript when a file cannot
-          be rewritten (allowInvalidJs is flipped on for this deploy). That fallback breaks
-          sites whose bundles then talk to their own APIs with unrewritten code - GeForce
-          NOW is one: its page loads, then dies with "There was a problem connecting to
-          GeForce NOW". Give that one site the original behaviour back through scramjet's
-          per-site flags, leaving every other site alone.
-          """
-          import pathlib
-          import re
-
-          replacement = 'siteFlags:{"play\\\\.geforcenow\\\\.com":{allowInvalidJs:!1}}'
-          pattern = re.compile(r"siteFlags:\s*\{\s*\}")
-
-          changed = []
-          for folder in ("dist/scram", "dist/assets"):
-              for path in pathlib.Path(folder).rglob("*.js"):
-                  text = path.read_text(encoding="utf-8", errors="surrogateescape")
-                  if "allowInvalidJs" not in text or "siteFlags" not in text:
-                      continue
-                  new = pattern.sub(replacement, text, count=1)
-                  if new != text:
-                      path.write_text(new, encoding="utf-8", errors="surrogateescape")
-                      changed.append(str(path))
-
-          print("per-site scramjet flags written to:", changed or "nothing")
-          if not changed:
-              print("warning: no siteFlags block found; GeForce NOW keeps the loose fallback")
-          PY
-          grep -rlF 'geforcenow' dist/scram dist/assets || echo 'warning: exemption not found in build output'
+          sed -i 's/siteFlags:{}/siteFlags:{"play[.]geforcenow[.]com":{allowInvalidJs:!1}}/' dist/scram/scramjet.js dist/assets/*.js
+          grep -rlF 'play[.]geforcenow[.]com' dist/scram dist/assets || echo 'warning: GeForce NOW exemption not written'
 
       - uses: actions/upload-pages-artifact@v3
         with:
