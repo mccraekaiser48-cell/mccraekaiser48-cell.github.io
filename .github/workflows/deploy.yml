@@ -127,6 +127,47 @@ jobs:
               print("mirror rewrite already present")
           PY
 
+          # GitHub Pages cannot send COOP/COEP itself. Without them the page is not
+          # cross-origin isolated, so the guest has no shared memory: one vCPU, and the
+          # window layer refuses every client (no app can open a window).
+          # A service worker adds the headers to navigations; the page reloads once.
+          cat > "$out/coi-sw.js" <<'JSW'
+          // GitHub Pages cannot send COOP/COEP response headers, and the guest needs a
+          // cross-origin isolated page: shared memory, more than one vCPU and the window
+          // layer (Wayland compositor) all hang off that. This worker adds the headers to
+          // navigations only, so every other request passes straight through.
+          self.addEventListener("install", function () { self.skipWaiting(); });
+          self.addEventListener("activate", function (e) { e.waitUntil(self.clients.claim()); });
+
+          self.addEventListener("fetch", function (event) {
+            var req = event.request;
+            if (req.mode !== "navigate") return;
+            event.respondWith(
+              fetch(req).then(function (res) {
+                if (res.status === 304 || res.status === 206 || res.type === "opaqueredirect") return res;
+                var h = new Headers(res.headers);
+                h.set("Cross-Origin-Opener-Policy", "same-origin");
+                h.set("Cross-Origin-Embedder-Policy", "require-corp");
+                h.set("Cross-Origin-Resource-Policy", "cross-origin");
+                return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
+              }).catch(function () { return fetch(req); })
+            );
+          });
+          JSW
+
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("public/index.html")
+          s = p.read_text(encoding="utf-8")
+          snippet = '<script>(function(){try{if(self.crossOriginIsolated||!("serviceWorker" in navigator))return;var n=+(sessionStorage.getItem("coi-tries")||0);navigator.serviceWorker.register("/coi-sw.js",{scope:"/"}).then(function(){return navigator.serviceWorker.ready}).then(function(){if(!self.crossOriginIsolated&&n<2){sessionStorage.setItem("coi-tries",String(n+1));location.reload()}}).catch(function(){})}catch(e){}})();</script>'
+          if "coi-sw.js" not in s:
+              s = s.replace("<head>", "<head>\n    " + snippet, 1)
+              p.write_text(s, encoding="utf-8")
+              print("injected isolation bootstrap")
+          else:
+              print("isolation bootstrap already present")
+          PY
+
           touch "$out/.nojekyll"
 
           # At the domain root no path rewriting is needed: /assets/... is correct as-is.
@@ -150,6 +191,11 @@ jobs:
             echo "vm-sw.js missing"
             exit 1
           fi
+          if [ ! -f "$out/coi-sw.js" ]; then
+            echo "coi-sw.js missing"
+            exit 1
+          fi
+          grep -c 'coi-sw.js' "$out/index.html"
           echo "mirror ok"
 
       - uses: actions/upload-pages-artifact@v3
