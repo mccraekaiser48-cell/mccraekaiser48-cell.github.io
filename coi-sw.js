@@ -53,10 +53,11 @@ self.addEventListener("fetch", function (event) {
           h.delete("content-encoding");
           h.delete("content-length");
           h.set("Cross-Origin-Resource-Policy", "cross-origin");
-          if (nav) {
-            h.set("Cross-Origin-Opener-Policy", "same-origin");
-            h.set("Cross-Origin-Embedder-Policy", "require-corp");
-          }
+          // The embedder policy has to be on every response, not just the page:
+          // Chrome refuses a worker script from a response without it
+          // (coep-frame-resource-needs-coep-header), and the kernel runs in one.
+          h.set("Cross-Origin-Embedder-Policy", "require-corp");
+          if (nav) h.set("Cross-Origin-Opener-Policy", "same-origin");
           return new Response(res.body, {
             status: res.status,
             statusText: res.statusText,
