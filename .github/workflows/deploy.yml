@@ -47,14 +47,14 @@ jobs:
             for file in $queue; do
               if [ ! -f "$out/$file" ]; then continue; fi
               refs=$(
-                grep -ohE '(src|href)="/[^"]+"' "$out/$file" 2>/dev/null | sed 's/.*="//;s/"$//'
+                grep -ohE '(src|href)="/[^"\]+"' "$out/$file" 2>/dev/null | sed 's/.*="//;s/"$//'
                 grep -ohE '"?/?assets/[A-Za-z0-9._/-]+' "$out/$file" 2>/dev/null
                 grep -ohE '"?/?distros/[A-Za-z0-9._-]+' "$out/$file" 2>/dev/null
-                grep -ohE 'wasm-inline[A-Za-z0-9._-]*\\.js' "$out/$file" 2>/dev/null
-                grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}\\.(js|mjs|css|wasm|woff2|png|svg|erofs|lua)' "$out/$file" 2>/dev/null
+                grep -ohE 'wasm-inline[A-Za-z0-9._-]*[.]js' "$out/$file" 2>/dev/null
+                grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}[.](js|mjs|css|wasm|woff2|png|svg|erofs|lua)' "$out/$file" 2>/dev/null
               )
               for ref in $refs; do
-                rel=$(printf '%s' "$ref" | tr -d "\\"'")
+                rel="$ref"
                 rel="${rel#./}"
                 rel="${rel#/}"
                 if [ -z "$rel" ]; then continue; fi
@@ -77,12 +77,7 @@ jobs:
 
           # Belt and braces: root-level helpers the crawl cannot reach from a string
           # literal. vm-sw.js is the service worker that carries the guest's network.
-          for extra in \
-            vm-sw.js \
-            init.lua \
-            assets/wasm-inline-DmWnZdLT.js \
-            distros/debian-18e863fd85a63b26.erofs \
-            distros/alpine-4253fdcaf3fe289f.erofs; do
+          for extra in vm-sw.js init.lua assets/wasm-inline-DmWnZdLT.js distros/debian-18e863fd85a63b26.erofs distros/alpine-4253fdcaf3fe289f.erofs; do
             grab "$extra" || echo "optional missing: $extra"
           done
 
@@ -103,7 +98,7 @@ jobs:
           if p.is_file():
               s = p.read_text(encoding="utf-8")
               new = 'if (url.pathname.startsWith("/vm/") && !LEGACY && event.clientId && url.pathname !== SHIM && event.request.mode !== "navigate") event.respondWith(fromPreview(event, url));'
-              s2, n = re.subn(r'if \\(!LEGACY.*?event\\.respondWith\\(fromPreview\\(event, url\\)\\);', new, s, count=1, flags=re.S)
+              s2, n = re.subn('if [(]!LEGACY.*?event[.]respondWith[(]fromPreview[(]event, url[)][)];', new, s, count=1, flags=re.S)
               if n:
                   p.write_text(s2, encoding="utf-8")
                   print("narrowed vm-sw.js interception to /vm/")
@@ -120,7 +115,7 @@ jobs:
           s = p.read_text(encoding="utf-8")
           snippet = '<script>(function(){var M="https://mirror.unkernel.dev",R="https://unkernel-wisp-relay-ivr40r-preview.freebuff.site",f=window.fetch.bind(window);window.fetch=function(i,n){try{var u=typeof i==="string"?i:(i&&i.url?i.url:String(i));if(u.indexOf(M)===0)return f(R+u.slice(M.length),n)}catch(e){}return f(i,n)}})();</script>'
           if "window.fetch=function(i,n)" not in s:
-              s = s.replace("<head>", "<head>\\n    " + snippet, 1)
+              s = s.replace("<head>", "<head>" + chr(10) + "    " + snippet, 1)
               p.write_text(s, encoding="utf-8")
               print("injected mirror rewrite")
           else:
@@ -139,7 +134,7 @@ jobs:
           s = p.read_text(encoding="utf-8")
           snippet = '<script>(function(){try{if(self.crossOriginIsolated||!("serviceWorker" in navigator))return;var n=+(sessionStorage.getItem("coi-tries")||0);navigator.serviceWorker.register("/coi-sw.js",{scope:"/"}).then(function(){return navigator.serviceWorker.ready}).then(function(){if(!self.crossOriginIsolated&&n<2){sessionStorage.setItem("coi-tries",String(n+1));location.reload()}}).catch(function(){})}catch(e){}})();</script>'
           if "coi-sw.js" not in s:
-              s = s.replace("<head>", "<head>\\n    " + snippet, 1)
+              s = s.replace("<head>", "<head>" + chr(10) + "    " + snippet, 1)
               p.write_text(s, encoding="utf-8")
               print("injected isolation bootstrap")
           else:
@@ -151,9 +146,9 @@ jobs:
           # At the domain root no path rewriting is needed: /assets/... is correct as-is.
           echo "mirrored $(find "$out" -type f | wc -l) files, $(du -sh "$out" | cut -f1)"
           echo "boot modules:"
-          find "$out/assets" -name 'boot-*' -printf '%f %s bytes\\n'
+          find "$out/assets" -name 'boot-*' -print
           echo "distros:"
-          find "$out/distros" -type f -printf '%f %s bytes\\n' 2>/dev/null
+          find "$out/distros" -type f -print 2>/dev/null
           echo "relay:"
           grep -roh 'wss://[A-Za-z0-9._/-]*wisp[A-Za-z0-9._/-]*' "$out/assets" 2>/dev/null | sort -u
           grep -c 'window.fetch=function(i,n)' "$out/index.html"
