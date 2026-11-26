@@ -20,15 +20,17 @@ jobs:
     steps:
       - name: Mirror the built site at the domain root
         run: |
+          set +e
           set -uo pipefail
           base="https://unkernel.dev"
           out="public"
           mkdir -p "$out"
-          curl -fsSL "$base/" -o "$out/index.html" || { echo "index fetch failed"; exit 1; }
+          curl -fsSL "$base/" -o "$out/index.html"
+          if [ ! -s "$out/index.html" ]; then echo "index fetch failed"; exit 1; fi
 
           grab() {
             rel="$1"
-            [ -f "$out/$rel" ] && return 0
+            if [ -f "$out/$rel" ]; then return 0; fi
             mkdir -p "$out/$(dirname "$rel")"
             if curl -fsSL "$base/$rel" -o "$out/$rel"; then return 0; fi
             rm -f "$out/$rel"
@@ -42,7 +44,7 @@ jobs:
           for round in 1 2 3 4 5 6 7; do
             next=""
             for file in $queue; do
-              [ -f "$out/$file" ] || continue
+              if [ ! -f "$out/$file" ]; then continue; fi
               refs=$(
                 grep -ohE '(src|href)="/[^"]+"' "$out/$file" 2>/dev/null | sed 's/.*="//;s/"$//'
                 grep -ohE '"?/?assets/[A-Za-z0-9._/-]+' "$out/$file" 2>/dev/null
@@ -52,11 +54,11 @@ jobs:
                 rel=$(printf '%s' "$ref" | tr -d "\"'")
                 rel="${rel#./}"
                 rel="${rel#/}"
-                [ -z "$rel" ] && continue
+                if [ -z "$rel" ]; then continue; fi
                 case "$rel" in *.js|*.mjs|*.css|*.wasm|*.woff2|*.png|*.svg|*.webmanifest) : ;; *) continue ;; esac
                 case " $seen " in *" $rel "*) continue ;; esac
                 seen="$seen$rel "
-                [ -f "$out/$rel" ] && continue
+                if [ -f "$out/$rel" ]; then continue; fi
                 if grab "$rel"; then
                   next="$next $rel"
                 else
@@ -67,7 +69,7 @@ jobs:
             done
             queue="$next"
             echo "round $round -> $(echo $queue | wc -w) new files"
-            [ -z "$queue" ] && break
+            if [ -z "$queue" ]; then break; fi
           done
 
           touch "$out/.nojekyll"
@@ -76,7 +78,11 @@ jobs:
           echo "mirrored $(find "$out" -type f | wc -l) files, $(du -sh "$out" | cut -f1)"
           echo "boot modules:"
           find "$out/assets" -name 'boot-*' -printf '%f %s bytes\n'
-          test -n "$(find "$out/assets" -name 'boot-*.js' -print -quit)" || { echo "boot module missing"; exit 1; }
+          if [ -z "$(find "$out/assets" -name 'boot-*.js' -print -quit)" ]; then
+            echo "boot module missing"
+            exit 1
+          fi
+          echo "mirror ok"
 
       - uses: actions/upload-pages-artifact@v3
         with:
