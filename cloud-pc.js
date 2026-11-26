@@ -1,13 +1,15 @@
-/* Cloud PC launcher for the mirrored unkernel desktop.
- * Adds one button to the desktop that opens a small panel of real cloud GPU PCs,
- * sized for a big modern game. No network calls, no dependencies, and every step
- * is wrapped so a page change can never take the desktop down with it.
+/* Desktop launcher for the mirrored unkernel desktop.
+ * Adds two app icons to the desktop: PlayMyPS5 (opens in its own window) and a
+ * Cloud PC panel of real GPU machines. No network calls, no dependencies, and
+ * every step is wrapped so a page change can never take the desktop down.
  */
 (function () {
   "use strict";
 
   if (window.__kwCloudPc) return;
   window.__kwCloudPc = true;
+
+  var PS5_URL = "https://playmyps5.com/";
 
   var PROVIDERS = [
     {
@@ -46,6 +48,68 @@
     return node;
   }
 
+  function iconButton(label, caption, background) {
+    var wrap = el(
+      "button",
+      [
+        "display:flex",
+        "flex-direction:column",
+        "align-items:center",
+        "gap:4px",
+        "padding:0",
+        "border:0",
+        "background:none",
+        "color:#f2f4f8",
+        "font:inherit",
+        "cursor:pointer"
+      ].join(";")
+    );
+    wrap.type = "button";
+    wrap.title = caption;
+    wrap.setAttribute("aria-label", caption);
+
+    var face = el(
+      "span",
+      [
+        "display:flex",
+        "align-items:center",
+        "justify-content:center",
+        "width:46px",
+        "height:46px",
+        "border-radius:12px",
+        "border:1px solid rgba(255,255,255,.22)",
+        "box-shadow:0 6px 18px rgba(0,0,0,.45)",
+        "font-size:13px",
+        "font-weight:700",
+        "letter-spacing:.4px",
+        "background:" + background
+      ].join(";"),
+      label
+    );
+
+    var cap = el(
+      "span",
+      "font-size:10px;line-height:1;padding:2px 5px;border-radius:6px;background:rgba(0,0,0,.55);white-space:nowrap",
+      caption
+    );
+
+    wrap.appendChild(face);
+    wrap.appendChild(cap);
+    return wrap;
+  }
+
+  function openPs5() {
+    var win = null;
+    try {
+      win = window.open(PS5_URL, "playmyps5", "popup=yes,width=1280,height=820,noopener");
+    } catch (err) {
+      win = null;
+    }
+    if (!win) {
+      window.location.href = PS5_URL;
+    }
+  }
+
   function build() {
     if (document.getElementById("kw-cloudpc-root")) return;
 
@@ -65,35 +129,13 @@
       ].join(";")
     );
 
-    var button = el(
-      "button",
-      [
-        "display:flex",
-        "align-items:center",
-        "gap:8px",
-        "padding:9px 14px",
-        "border:1px solid rgba(255,255,255,.22)",
-        "border-radius:999px",
-        "background:linear-gradient(180deg,#2b3a55,#1c2637)",
-        "color:#fff",
-        "font:inherit",
-        "font-weight:600",
-        "cursor:pointer",
-        "box-shadow:0 6px 20px rgba(0,0,0,.45)"
-      ].join(";")
-    );
-    button.type = "button";
-    button.setAttribute("aria-expanded", "false");
-    button.appendChild(el("span", "font-size:15px", "\u2601"));
-    button.appendChild(el("span", null, "Cloud PC"));
-
     var panel = el(
       "div",
       [
         "display:none",
         "position:absolute",
         "right:0",
-        "bottom:calc(100% + 10px)",
+        "bottom:calc(100% + 12px)",
         "width:min(370px,calc(100vw - 32px))",
         "max-height:min(74vh,560px)",
         "overflow:auto",
@@ -155,18 +197,35 @@
       el(
         "div",
         "font-size:11px;color:#7b8593;margin-top:6px",
-        "None of this puts GTA VI on screen today: there is still no playable PC build, and any page offering a \u201cGTA VI PC installer\u201d is pushing malware. Opening these links does nothing until you sign up."
+        "Opening these links does nothing until you sign up. For a free turn on a real PS5 tonight, use the PS5 icon on the desktop."
       )
     );
 
-    function setOpen(open) {
-      panel.style.display = open ? "block" : "none";
-      button.setAttribute("aria-expanded", open ? "true" : "false");
+    var dock = el("div", "display:flex;align-items:flex-end;gap:10px");
+
+    var ps5 = iconButton("PS5", "PlayMyPS5", "linear-gradient(180deg,#1f6feb,#0b3d91)");
+    ps5.addEventListener("click", function (event) {
+      event.stopPropagation();
+      openPs5();
+    });
+    ps5.addEventListener("dblclick", function (event) {
+      event.stopPropagation();
+      openPs5();
+    });
+
+    var cloud = iconButton("PC", "Cloud PC", "linear-gradient(180deg,#2b3a55,#1c2637)");
+    cloud.setAttribute("aria-expanded", "false");
+
+    var open = false;
+    function setOpen(next) {
+      open = next;
+      panel.style.display = next ? "block" : "none";
+      cloud.setAttribute("aria-expanded", next ? "true" : "false");
     }
 
-    button.addEventListener("click", function (event) {
+    cloud.addEventListener("click", function (event) {
       event.stopPropagation();
-      setOpen(panel.style.display === "none");
+      setOpen(!open);
     });
 
     panel.addEventListener("click", function (event) {
@@ -174,15 +233,18 @@
     });
 
     document.addEventListener("click", function () {
-      if (panel.style.display !== "none") setOpen(false);
+      if (open) setOpen(false);
     });
 
     document.addEventListener("keydown", function (event) {
-      if (event.key === "Escape" && panel.style.display !== "none") setOpen(false);
+      if (event.key === "Escape" && open) setOpen(false);
     });
 
+    dock.appendChild(ps5);
+    dock.appendChild(cloud);
+
     root.appendChild(panel);
-    root.appendChild(button);
+    root.appendChild(dock);
     document.body.appendChild(root);
   }
 
