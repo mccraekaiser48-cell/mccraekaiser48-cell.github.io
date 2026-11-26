@@ -18,6 +18,9 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      - name: Check out this repository
+        uses: actions/checkout@v4
+
       - name: Mirror the built site at the domain root
         run: |
           set +e
@@ -75,23 +78,31 @@ jobs:
             if [ -z "$queue" ]; then break; fi
           done
 
-          # Belt and braces: root-level helpers the crawl cannot reach from a string
-          # literal. vm-sw.js is the service worker that carries the guest's network.
+          # Belt and braces: root-level helpers the crawl cannot reach from a
+          # string literal. vm-sw.js is the service worker that carries the
+          # guest's network.
           for extra in vm-sw.js init.lua assets/wasm-inline-DmWnZdLT.js distros/debian-18e863fd85a63b26.erofs distros/alpine-4253fdcaf3fe289f.erofs; do
             grab "$extra" || echo "optional missing: $extra"
           done
 
-          # The shipped default relay only accepts its own origin, so the guest gets
-          # 403 Forbidden for every package. Point it at our own relay, which allows
-          # this origin and reaches Debian's mirrors.
+          # The shipped default relay only accepts its own origin, so the guest
+          # gets 403 Forbidden for every package. Point it at our own relay,
+          # which allows this origin and reaches Debian's mirrors.
           grep -rl 'wss://wisp.pi0.io:6680/' "$out" 2>/dev/null | while read -r f; do
             sed -i "s#wss://wisp.pi0.io:6680/#$relay#g" "$f"
             echo "repointed relay in $f"
           done
 
+          # The isolation worker ships with this repository. GitHub Pages cannot
+          # send COOP/COEP, so this worker adds them and is what makes the
+          # desktop windows (shared memory, several vCPUs) work here at all.
+          cp coi-sw.js coi-boot.js "$out"/
+          ls -l "$out/coi-sw.js" "$out/coi-boot.js"
+
           # The service worker re-serves same-origin fetches through its preview
-          # relay, which drops Range support and makes the kernel refuse the distro
-          # image. Its only job here is /vm/ app traffic, so narrow it to that.
+          # relay, which drops Range support and makes the kernel refuse the
+          # distro image. Its only job here is /vm/ app traffic, so narrow it to
+          # that.
           python3 - <<'PY'
           import pathlib, re
           p = pathlib.Path("public/vm-sw.js")
@@ -106,36 +117,84 @@ jobs:
                   print("vm-sw.js interception left as-is")
           PY
 
-          # apt inside the guest reaches deb.debian.org through a host-side mirror
-          # endpoint that lives on unkernel.dev. Redirect that fetch to our relay,
-          # which serves the same paths from Debian's own mirrors.
+          # /vm/ documents live in their own worker scope, so they never pass
+          # through coi-sw.js. Navigations are not intercepted there anyway, so
+          # a listener registered ahead of it can carry the isolation headers.
           python3 - <<'PY'
           import pathlib
-          p = pathlib.Path("public/index.html")
-          s = p.read_text(encoding="utf-8")
-          snippet = '<script>(function(){var M="https://mirror.unkernel.dev",R="https://unkernel-wisp-relay-ivr40r-preview.freebuff.site",f=window.fetch.bind(window);window.fetch=function(i,n){try{var u=typeof i==="string"?i:(i&&i.url?i.url:String(i));if(u.indexOf(M)===0)return f(R+u.slice(M.length),n)}catch(e){}return f(i,n)}})();</script>'
-          if "window.fetch=function(i,n)" not in s:
-              s = s.replace("<head>", "<head>" + chr(10) + "    " + snippet, 1)
-              p.write_text(s, encoding="utf-8")
-              print("injected mirror rewrite")
-          else:
-              print("mirror rewrite already present")
+          p = pathlib.Path("public/vm-sw.js")
+          if p.is_file():
+              s = p.read_text(encoding="utf-8")
+              if "kw-coi" not in s:
+                  nl = chr(10)
+                  q = chr(34)
+                  listener = nl.join([
+                      "/* kw-coi: guest preview documents need the same isolation headers. */",
+                      "self.addEventListener(" + q + "fetch" + q + ", function (event) {",
+                      "  var req = event.request;",
+                      "  if (req.mode !== " + q + "navigate" + q + ") return;",
+                      "  var u = new URL(req.url);",
+                      "  if (u.origin !== self.location.origin) return;",
+                      "  event.respondWith(",
+                      "    fetch(req).then(function (res) {",
+                      "      var h = new Headers(res.headers);",
+                      "      h.delete(" + q + "content-encoding" + q + ");",
+                      "      h.delete(" + q + "content-length" + q + ");",
+                      "      h.set(" + q + "Cross-Origin-Opener-Policy" + q + ", " + q + "same-origin" + q + ");",
+                      "      h.set(" + q + "Cross-Origin-Embedder-Policy" + q + ", " + q + "require-corp" + q + ");",
+                      "      h.set(" + q + "Cross-Origin-Resource-Policy" + q + ", " + q + "cross-origin" + q + ");",
+                      "      return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });",
+                      "    }).catch(function () { return fetch(req); })",
+                      "  );",
+                      "});",
+                      "",
+                  ])
+                  p.write_text(listener + s, encoding="utf-8")
+                  print("prepended isolation listener to vm-sw.js")
+              else:
+                  print("vm-sw.js isolation listener already present")
           PY
 
-          # The isolation worker experiment is rolled back: with COOP/COEP the page
-          # cannot load the kernel worker here, so the guest never boots. Unregister
-          # any worker a visitor already has, then leave the page as it was.
+          # apt inside the guest reaches a mirror that belongs to unkernel.dev and
+          # refuses other origins. The mirror URL lives inside the shipped
+          # scripts, and the guest's network stack runs in a worker where an
+          # inline page patch never applies, so rewrite the URL in the files
+          # themselves: every request then lands on our relay instead.
+          python3 - <<'PY'
+          import pathlib
+          M = "https://mirror.unkernel.dev"
+          R = "https://unkernel-wisp-relay-ivr40r-preview.freebuff.site"
+          hit = 0
+          for pattern in ("*.js", "*.mjs", "*.html", "*.json", "*.lua", "*.webmanifest"):
+              for p in pathlib.Path("public").rglob(pattern):
+                  try:
+                      s = p.read_text(encoding="utf-8")
+                  except (UnicodeDecodeError, OSError):
+                      continue
+                  if M in s:
+                      p.write_text(s.replace(M, R), encoding="utf-8")
+                      hit += 1
+                      print("rewrote mirror in", p)
+          print("mirror rewrites:", hit)
+          PY
+
+          # Install the isolation worker before anything else on the page runs,
+          # and drop the old experiment that unregistered workers on load (it
+          # would remove the worker this build depends on).
           python3 - <<'PY'
           import pathlib
           p = pathlib.Path("public/index.html")
           s = p.read_text(encoding="utf-8")
-          snippet = '<script>(function(){try{if("serviceWorker" in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})}).catch(function(){})}catch(e){}})();</script>'
-          if "getRegistrations().then" not in s:
-              s = s.replace("<head>", "<head>" + chr(10) + "    " + snippet, 1)
-              p.write_text(s, encoding="utf-8")
-              print("injected worker cleanup")
-          else:
-              print("worker cleanup already present")
+          if "getRegistrations().then" in s:
+              s = s.replace("navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})}).catch(function(){})", "")
+              print("removed worker cleanup")
+          tag = '<script src="/coi-boot.js"></script>'
+          if tag not in s:
+              s = s.replace("<head>", "<head>" + chr(10) + "    " + tag, 1)
+              print("injected isolation worker")
+          if "getRegistrations().then" in s:
+              raise SystemExit("worker cleanup still present")
+          p.write_text(s, encoding="utf-8")
           PY
 
           touch "$out/.nojekyll"
@@ -148,7 +207,8 @@ jobs:
           find "$out/distros" -type f -print 2>/dev/null
           echo "relay:"
           grep -roh 'wss://[A-Za-z0-9._/-]*wisp[A-Za-z0-9._/-]*' "$out/assets" 2>/dev/null | sort -u
-          grep -c 'window.fetch=function(i,n)' "$out/index.html"
+          echo "isolation worker:"
+          grep -c 'coi-boot.js' "$out/index.html"
           if [ -z "$(find "$out/assets" -name 'boot-*.js' -print -quit)" ]; then
             echo "boot module missing"
             exit 1
@@ -159,6 +219,18 @@ jobs:
           fi
           if [ ! -f "$out/vm-sw.js" ]; then
             echo "vm-sw.js missing"
+            exit 1
+          fi
+          if [ ! -f "$out/coi-sw.js" ] || [ ! -f "$out/coi-boot.js" ]; then
+            echo "isolation worker missing"
+            exit 1
+          fi
+          if [ "$(grep -c 'coi-boot.js' "$out/index.html")" != "1" ]; then
+            echo "isolation worker not registered by the page"
+            exit 1
+          fi
+          if grep -q 'getRegistrations().then' "$out/index.html"; then
+            echo "worker cleanup still in the page"
             exit 1
           fi
           echo "mirror ok"
