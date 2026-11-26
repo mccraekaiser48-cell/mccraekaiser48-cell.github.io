@@ -180,7 +180,9 @@ jobs:
 
           # Install the isolation worker before anything else on the page runs,
           # and drop the old experiment that unregistered workers on load (it
-          # would remove the worker this build depends on).
+          # would remove the worker this build depends on). The version suffix
+          # matters: Pages caches scripts for ten minutes, so a browser that
+          # kept an old copy has to be given a new URL to fetch.
           python3 - <<'PY'
           import pathlib
           p = pathlib.Path("public/index.html")
@@ -188,7 +190,7 @@ jobs:
           if "getRegistrations().then" in s:
               s = s.replace("navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})}).catch(function(){})", "")
               print("removed worker cleanup")
-          for name in ("coi-boot.js", "worker-shim.js"):
+          for name in ("coi-boot.js?v=2", "worker-shim.js?v=2"):
               tag = '<script src="/' + name + '"></script>'
               if tag not in s:
                   s = s.replace("<head>", "<head>" + chr(10) + "    " + tag, 1)
@@ -231,7 +233,7 @@ jobs:
             echo "isolation worker not registered by the page"
             exit 1
           fi
-          if [ "$(grep -c 'worker-shim.js' "$out/index.html")" != "1" ]; then
+          if [ "$(grep -c 'worker-shim.js?v=2' "$out/index.html")" != "1" ]; then
             echo "worker shim not installed by the page"
             exit 1
           fi

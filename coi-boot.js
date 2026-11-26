@@ -5,6 +5,9 @@
 // for browsers that claim the page a moment later. Attempts are throttled so a
 // browser that refuses service workers cannot spin, while a later visit starts
 // over and tries again.
+//
+// The worker URL carries a version: Pages caches scripts for ten minutes, and a
+// registration pointing at the old bytes would never pick up a fix.
 (function () {
   try {
     if (!("serviceWorker" in navigator)) return;
@@ -33,7 +36,7 @@
     }
 
     navigator.serviceWorker
-      .register("/coi-sw.js", { scope: "/" })
+      .register("/coi-sw.js?v=2", { scope: "/" })
       .then(function () {
         if (navigator.serviceWorker.controller) {
           setTimeout(reloadOnce, 60);
