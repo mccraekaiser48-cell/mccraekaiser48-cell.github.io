@@ -23,6 +23,7 @@ jobs:
           set +e
           set -uo pipefail
           base="https://unkernel.dev"
+          relay="wss://unkernel-wisp-relay-ivr40r-preview.freebuff.site/wisp"
           out="public"
           mkdir -p "$out"
           curl -fsSL "$base/" -o "$out/index.html"
@@ -85,6 +86,14 @@ jobs:
             grab "$extra" || echo "optional missing: $extra"
           done
 
+          # The shipped default relay only accepts its own origin, so the guest gets
+          # 403 Forbidden for every package. Point it at our own relay, which allows
+          # this origin and reaches Debian's mirrors.
+          grep -rl 'wss://wisp.pi0.io:6680/' "$out" 2>/dev/null | while read -r f; do
+            sed -i "s#wss://wisp.pi0.io:6680/#$relay#g" "$f"
+            echo "repointed relay in $f"
+          done
+
           # The service worker re-serves same-origin fetches through its own
           # preview path, which drops Range support and makes the kernel refuse
           # the distro image. Keep it away from assets, distros and init.lua.
@@ -110,6 +119,8 @@ jobs:
           find "$out/assets" -name 'boot-*' -printf '%f %s bytes\n'
           echo "distros:"
           find "$out/distros" -type f -printf '%f %s bytes\n' 2>/dev/null
+          echo "relay:"
+          grep -roh 'wss://[A-Za-z0-9._/-]*wisp[A-Za-z0-9._/-]*' "$out/assets" 2>/dev/null | sort -u
           if [ -z "$(find "$out/assets" -name 'boot-*.js' -print -quit)" ]; then
             echo "boot module missing"
             exit 1
