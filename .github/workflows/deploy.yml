@@ -96,8 +96,8 @@ jobs:
           # The isolation worker ships with this repository. GitHub Pages cannot
           # send COOP/COEP, so this worker adds them and is what makes the
           # desktop windows (shared memory, several vCPUs) work here at all.
-          cp coi-sw.js coi-boot.js worker-shim.js "$out"/
-          ls -l "$out/coi-sw.js" "$out/coi-boot.js" "$out/worker-shim.js"
+          cp coi-sw.js coi-boot.js worker-shim.js boot-guard.js "$out"/
+          ls -l "$out/coi-sw.js" "$out/coi-boot.js" "$out/worker-shim.js" "$out/boot-guard.js"
 
           # The service worker re-serves same-origin fetches through its preview
           # relay, which drops Range support and makes the kernel refuse the
@@ -190,7 +190,7 @@ jobs:
           if "getRegistrations().then" in s:
               s = s.replace("navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})}).catch(function(){})", "")
               print("removed worker cleanup")
-          for name in ("coi-boot.js?v=2", "worker-shim.js?v=2"):
+          for name in ("coi-boot.js?v=2", "worker-shim.js?v=2", "boot-guard.js?v=1"):
               tag = '<script src="/' + name + '"></script>'
               if tag not in s:
                   s = s.replace("<head>", "<head>" + chr(10) + "    " + tag, 1)
@@ -225,7 +225,7 @@ jobs:
             echo "vm-sw.js missing"
             exit 1
           fi
-          if [ ! -f "$out/coi-sw.js" ] || [ ! -f "$out/coi-boot.js" ] || [ ! -f "$out/worker-shim.js" ]; then
+          if [ ! -f "$out/coi-sw.js" ] || [ ! -f "$out/coi-boot.js" ] || [ ! -f "$out/worker-shim.js" ] || [ ! -f "$out/boot-guard.js" ]; then
             echo "isolation worker missing"
             exit 1
           fi
@@ -235,6 +235,10 @@ jobs:
           fi
           if [ "$(grep -c 'worker-shim.js?v=2' "$out/index.html")" != "1" ]; then
             echo "worker shim not installed by the page"
+            exit 1
+          fi
+          if [ "$(grep -c 'boot-guard.js?v=1' "$out/index.html")" != "1" ]; then
+            echo "boot guard not installed by the page"
             exit 1
           fi
           if grep -q 'getRegistrations().then' "$out/index.html"; then
