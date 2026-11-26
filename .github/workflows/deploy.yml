@@ -85,6 +85,23 @@ jobs:
             grab "$extra" || echo "optional missing: $extra"
           done
 
+          # The service worker re-serves same-origin fetches through its own
+          # preview path, which drops Range support and makes the kernel refuse
+          # the distro image. Keep it away from assets, distros and init.lua.
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("public/vm-sw.js")
+          if p.is_file():
+              s = p.read_text(encoding="utf-8")
+              old = 'event.request.mode !== "navigate") event.respondWith'
+              new = 'event.request.mode !== "navigate" && !/^\\/(distros|assets|init\\.lua)/.test(url.pathname)) event.respondWith'
+              if old in s and new not in s:
+                  p.write_text(s.replace(old, new), encoding="utf-8")
+                  print("patched vm-sw.js fetch interception")
+              else:
+                  print("vm-sw.js left as-is")
+          PY
+
           touch "$out/.nojekyll"
 
           # At the domain root no path rewriting is needed: /assets/... is correct as-is.
