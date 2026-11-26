@@ -1,9 +1,10 @@
 /* Desktop launcher for the mirrored unkernel desktop.
- * One app icon: PlayMyPS5. It opens inside the desktop now, in a real window
- * frame, because the site's isolation header was relaxed from require-corp to
- * credentialless (see coi-sw.js). Falls back to a popup link if the frame is
- * blocked. No dependencies, and every step is wrapped so a page change can
- * never take the desktop down.
+ * One app icon: PlayMyPS5, opening inside the desktop in a window frame.
+ * The frame is pointed at /distros/ps5.html, the one folder the isolation
+ * worker leaves untouched: the desktop page itself is cross-origin isolated,
+ * and an isolated page refuses to frame a third-party site directly.
+ * No dependencies, and every step is wrapped so a page change can never take
+ * the desktop down.
  */
 (function () {
   "use strict";
@@ -12,6 +13,7 @@
   window.__kwPs5Icon = true;
 
   var PS5_URL = "https://playmyps5.com/";
+  var FRAME_URL = "/distros/ps5.html";
 
   function el(tag, styles, text) {
     var node = document.createElement(tag);
@@ -31,8 +33,7 @@
         "align-items:center",
         "justify-content:center",
         "padding:2.4vh 2.4vw",
-        "background:rgba(4,7,12,.82)",
-        "backdrop-filter:blur(2px)"
+        "background:rgba(4,7,12,.82)"
       ].join(";")
     );
     sheet.id = "kw-ps5-sheet";
@@ -104,10 +105,9 @@
     bar.appendChild(close);
 
     var frame = document.createElement("iframe");
-    frame.src = PS5_URL;
+    frame.src = FRAME_URL;
     frame.title = "PlayMyPS5";
     frame.setAttribute("allow", "autoplay; fullscreen; gamepad; encrypted-media; clipboard-write");
-    frame.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
     frame.setAttribute(
       "style",
       "flex:1;width:100%;border:0;display:block;background:#000"

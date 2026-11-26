@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PlayMyPS5</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: #000;
+        overflow: hidden;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      .wrap {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .bar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 6px 10px;
+        background: #141a24;
+        color: #f2f4f8;
+        font-size: 12px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .bar b {
+        font-weight: 700;
+        letter-spacing: 0.3px;
+      }
+      .bar a {
+        color: #8ab4f8;
+        text-decoration: none;
+        padding: 3px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 8px;
+      }
+      .bar span {
+        flex: 1;
+      }
+      iframe {
+        flex: 1;
+        width: 100%;
+        border: 0;
+        display: block;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="bar">
+        <b>PlayMyPS5</b>
+        <span></span>
+        <a href="https://playmyps5.com/" target="_blank" rel="noopener">Open in its own window</a>
+      </div>
+      <iframe
+        src="https://playmyps5.com/"
+        title="PlayMyPS5"
+        allow="autoplay; fullscreen; gamepad; encrypted-media; clipboard-write"
+        referrerpolicy="no-referrer-when-downgrade"
+      ></iframe>
+    </div>
+  </body>
+</html>
