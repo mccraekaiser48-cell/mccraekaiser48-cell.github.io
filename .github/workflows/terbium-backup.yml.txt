@@ -1,0 +1,59 @@
+# Backup of the previous Terbium workflow.
+# Rename this file to deploy-terbium.yml (and remove deploy.yml) to restore Terbium.
+
+name: Deploy Terbium to GitHub Pages (disabled)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Fetch Terbium source
+        run: git clone --depth 1 https://github.com/TerbiumOS/web-v2.git app
+
+      - name: Build static site
+        working-directory: app
+        run: |
+          npm i --no-audit --no-fund
+          npm run build-static
+          touch dist/.nojekyll
+
+      - name: Make the first screen appear sooner
+        working-directory: app
+        run: |
+          cat > speedup.py <<'PY'
+          import re, sys, pathlib
+          dist = pathlib.Path(sys.argv[1])
+          page = dist / "index.html"
+          html = page.read_text(encoding="utf-8")
+          html = re.sub(r"\s*<!--\s*Google tag \(gtag\.js\)\s*-->", "", html)
+          html = re.sub(r'\s*<script[^>]*googletagmanager\.com[^>]*>\s*</script>', "", html)
+          html = re.sub(r"\s*<script>\s*window\.dataLayer.*?</script>", "", html, flags=re.S)
+          page.write_text(html, encoding="utf-8")
+          PY
+          python3 speedup.py dist
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
