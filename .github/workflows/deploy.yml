@@ -24,7 +24,7 @@ jobs:
           base="https://unkernel.dev"
           out="public"
           mkdir -p "$out"
-          curl -fsSL "$base/" -o "$out/index.html"
+          curl -fsSL "$base/" -o "$out/index.html" || { echo "index fetch failed"; exit 1; }
 
           grab() {
             rel="$1"
@@ -35,33 +35,23 @@ jobs:
             return 1
           }
 
-          for f in \
-            assets/ui-g2aqRuz9.js assets/index-CGNAw_dm.js assets/keys-D9A6ZEDy.js \
-            assets/index-D90Pw360.css assets/boot-rxV9bt3R.css assets/boot-Ba911jvc.js \
-            assets/wasm-inline-DmWnZdLT.js \
-            assets/geist-latin-wght-normal-BgDaEnEv.woff2 \
-            assets/geist-mono-latin-wght-normal-XN7g48iV.woff2 \
-            assets/geist-mono-symbols2-wght-normal-CO5SzqOn.woff2 \
-            assets/logo-Cv3wHR3E.svg manifest.webmanifest apple-touch-icon.png; do
-            grab "$f" || echo "optional missing: $f"
-          done
-
-          # Follow references so nothing the loader fetches at runtime is left behind.
+          # Crawl every reference, starting from index.html, so hashed filenames
+          # never have to be hardcoded.
           queue="index.html"
           seen=" "
-          for round in 1 2 3 4 5; do
+          for round in 1 2 3 4 5 6 7; do
             next=""
             for file in $queue; do
               [ -f "$out/$file" ] || continue
               refs=$(
                 grep -ohE '(src|href)="/[^"]+"' "$out/$file" 2>/dev/null | sed 's/.*="//;s/"$//'
-                grep -ohE '/assets/[A-Za-z0-9._/-]+' "$out/$file" 2>/dev/null
+                grep -ohE '"?/?assets/[A-Za-z0-9._/-]+' "$out/$file" 2>/dev/null
                 grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}\.(js|mjs|css|wasm|woff2|png|svg)' "$out/$file" 2>/dev/null
               )
               for ref in $refs; do
-                rel="${ref#/}"
+                rel=$(printf '%s' "$ref" | sed 's#^["']*##; s#^/##; s#^\./##')
                 [ -z "$rel" ] && continue
-                case "$rel" in *.js|*.mjs|*.css|*.wasm|*.woff2|*.png|*.svg) : ;; *) continue ;; esac
+                case "$rel" in *.js|*.mjs|*.css|*.wasm|*.woff2|*.png|*.svg|*.webmanifest) : ;; *) continue ;; esac
                 case " $seen " in *" $rel "*) continue ;; esac
                 seen="$seen$rel "
                 [ -f "$out/$rel" ] && continue
@@ -74,12 +64,17 @@ jobs:
               done
             done
             queue="$next"
+            echo "round $round -> $(echo $queue | wc -w) new files"
             [ -z "$queue" ] && break
           done
 
+          touch "$out/.nojekyll"
+
           # At the domain root no path rewriting is needed: /assets/... is correct as-is.
           echo "mirrored $(find "$out" -type f | wc -l) files, $(du -sh "$out" | cut -f1)"
-          ls -la "$out/assets" | head -20
+          echo "boot modules:"
+          find "$out/assets" -name 'boot-*' -printf '%f %s bytes\n'
+          test -n "$(find "$out/assets" -name 'boot-*.js' -print -quit)" || { echo "boot module missing"; exit 1; }
 
       - uses: actions/upload-pages-artifact@v3
         with:
