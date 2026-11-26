@@ -8,6 +8,10 @@
 // in chunks by name the crawler never finds (assets/wland-*.js,
 // assets/client-*.js), and a 404 there kills every window. Those are fetched
 // from the header-adding mirror of this same site, which falls back upstream.
+//
+// COEP is credentialless rather than require-corp: both give a cross-origin
+// isolated page, but credentialless still lets a cross-site frame load (the
+// PlayMyPS5 window) without that site sending a CORP header.
 
 var FALLBACK = "https://unkernel-isolated-fxur3n-preview.freebuff.site";
 
@@ -56,7 +60,7 @@ self.addEventListener("fetch", function (event) {
           // response lacks the embedder policy (coep-frame-resource-needs-
           // coep-header), and the kernel itself runs in a worker, so both
           // headers go on every response rather than only on pages.
-          h.set("Cross-Origin-Embedder-Policy", "require-corp");
+          h.set("Cross-Origin-Embedder-Policy", "credentialless");
           h.set("Cross-Origin-Opener-Policy", "same-origin");
           return new Response(res.body, {
             status: res.status,
