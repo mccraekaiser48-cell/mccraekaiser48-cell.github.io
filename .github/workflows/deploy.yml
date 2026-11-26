@@ -111,6 +111,22 @@ jobs:
                   print("vm-sw.js interception left as-is")
           PY
 
+          # apt inside the guest reaches deb.debian.org through a host-side mirror
+          # endpoint that lives on unkernel.dev. Redirect that fetch to our relay,
+          # which serves the same paths from Debian's own mirrors.
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("public/index.html")
+          s = p.read_text(encoding="utf-8")
+          snippet = '<script>(function(){var M="https://mirror.unkernel.dev",R="https://unkernel-wisp-relay-ivr40r-preview.freebuff.site",f=window.fetch.bind(window);window.fetch=function(i,n){try{var u=typeof i==="string"?i:(i&&i.url?i.url:String(i));if(u.indexOf(M)===0)return f(R+u.slice(M.length),n)}catch(e){}return f(i,n)}})();</script>'
+          if "window.fetch=function(i,n)" not in s:
+              s = s.replace("<head>", "<head>\n    " + snippet, 1)
+              p.write_text(s, encoding="utf-8")
+              print("injected mirror rewrite")
+          else:
+              print("mirror rewrite already present")
+          PY
+
           touch "$out/.nojekyll"
 
           # At the domain root no path rewriting is needed: /assets/... is correct as-is.
@@ -121,6 +137,7 @@ jobs:
           find "$out/distros" -type f -printf '%f %s bytes\n' 2>/dev/null
           echo "relay:"
           grep -roh 'wss://[A-Za-z0-9._/-]*wisp[A-Za-z0-9._/-]*' "$out/assets" 2>/dev/null | sort -u
+          grep -c 'window.fetch=function(i,n)' "$out/index.html"
           if [ -z "$(find "$out/assets" -name 'boot-*.js' -print -quit)" ]; then
             echo "boot module missing"
             exit 1
