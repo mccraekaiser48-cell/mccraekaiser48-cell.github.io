@@ -122,23 +122,20 @@ jobs:
               print("mirror rewrite already present")
           PY
 
-          # GitHub Pages cannot send COOP/COEP itself. Without them the page is not
-          # cross-origin isolated, so the guest has no shared memory: one vCPU, and the
-          # window layer refuses every client (no app can open a window).
-          # A service worker adds the headers to navigations; the page reloads once.
-          curl -fsSL "https://raw.githubusercontent.com/mccraekaiser48-cell/mccraekaiser48-cell.github.io/main/coi-sw.js" -o "$out/coi-sw.js" || echo "coi-sw.js fetch failed"
-
+          # The isolation worker experiment is rolled back: with COOP/COEP the page
+          # cannot load the kernel worker here, so the guest never boots. Unregister
+          # any worker a visitor already has, then leave the page as it was.
           python3 - <<'PY'
           import pathlib
           p = pathlib.Path("public/index.html")
           s = p.read_text(encoding="utf-8")
-          snippet = '<script>(function(){try{if(self.crossOriginIsolated||!("serviceWorker" in navigator))return;var n=+(sessionStorage.getItem("coi-tries")||0);navigator.serviceWorker.register("/coi-sw.js",{scope:"/"}).then(function(){return navigator.serviceWorker.ready}).then(function(){if(!self.crossOriginIsolated&&n<2){sessionStorage.setItem("coi-tries",String(n+1));location.reload()}}).catch(function(){})}catch(e){}})();</script>'
-          if "coi-sw.js" not in s:
+          snippet = '<script>(function(){try{if("serviceWorker" in navigator)navigator.serviceWorker.getRegistrations().then(function(rs){rs.forEach(function(r){r.unregister()})}).catch(function(){})}catch(e){}})();</script>'
+          if "getRegistrations().then" not in s:
               s = s.replace("<head>", "<head>" + chr(10) + "    " + snippet, 1)
               p.write_text(s, encoding="utf-8")
-              print("injected isolation bootstrap")
+              print("injected worker cleanup")
           else:
-              print("isolation bootstrap already present")
+              print("worker cleanup already present")
           PY
 
           touch "$out/.nojekyll"
@@ -164,11 +161,6 @@ jobs:
             echo "vm-sw.js missing"
             exit 1
           fi
-          if [ ! -f "$out/coi-sw.js" ]; then
-            echo "coi-sw.js missing"
-            exit 1
-          fi
-          grep -c 'coi-sw.js' "$out/index.html"
           echo "mirror ok"
 
       - uses: actions/upload-pages-artifact@v3
