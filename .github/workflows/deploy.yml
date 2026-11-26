@@ -49,7 +49,9 @@ jobs:
                 grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}\.(js|mjs|css|wasm|woff2|png|svg)' "$out/$file" 2>/dev/null
               )
               for ref in $refs; do
-                rel=$(printf '%s' "$ref" | sed 's#^["']*##; s#^/##; s#^\./##')
+                rel=$(printf '%s' "$ref" | tr -d "\"'")
+                rel="${rel#./}"
+                rel="${rel#/}"
                 [ -z "$rel" ] && continue
                 case "$rel" in *.js|*.mjs|*.css|*.wasm|*.woff2|*.png|*.svg|*.webmanifest) : ;; *) continue ;; esac
                 case " $seen " in *" $rel "*) continue ;; esac
