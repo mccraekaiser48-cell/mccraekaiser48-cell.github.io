@@ -1,8 +1,8 @@
 /* Desktop launcher for the mirrored unkernel desktop.
- * Two app icons: PlayMyPS5 (free shared PS5, five-minute turns) and Warplay
- * (free PC games, 30-minute sessions, no monthly cap). Both open in their own
- * window, or this tab if the browser blocks pop-ups: the desktop page is
- * cross-origin isolated and an isolated page refuses to frame other sites.
+ * One app icon: PlayMyPS5, which opens in its own window (or this tab if the
+ * browser blocks pop-ups). The desktop page is cross-origin isolated, and an
+ * isolated page refuses to frame a third-party site, so an in-page window is
+ * not possible without switching the desktop's isolation off.
  * No dependencies, and every step is wrapped so a page change can never take
  * the desktop down.
  */
@@ -12,24 +12,7 @@
   if (window.__kwPs5Icon) return;
   window.__kwPs5Icon = true;
 
-  var APPS = [
-    {
-      id: "kw-ps5-icon",
-      face: "PS5",
-      caption: "PlayMyPS5",
-      url: "https://playmyps5.com/",
-      windowName: "playmyps5",
-      background: "linear-gradient(180deg,#1f6feb,#0b3d91)"
-    },
-    {
-      id: "kw-warplay-icon",
-      face: "W",
-      caption: "Warplay",
-      url: "https://warplay.cloud/",
-      windowName: "warplay",
-      background: "linear-gradient(180deg,#7b3ff2,#3b1a8a)"
-    }
-  ];
+  var PS5_URL = "https://playmyps5.com/";
 
   function el(tag, styles, text) {
     var node = document.createElement(tag);
@@ -38,24 +21,28 @@
     return node;
   }
 
-  function openApp(app) {
+  function openPs5() {
     var win = null;
     try {
-      win = window.open(app.url, app.windowName, "popup=yes,width=1280,height=820,noopener");
+      win = window.open(PS5_URL, "playmyps5", "popup=yes,width=1280,height=820,noopener");
     } catch (err) {
       win = null;
     }
     if (!win) {
-      window.location.href = app.url;
+      window.location.href = PS5_URL;
     }
   }
 
-  function buildIcon(app) {
-    if (document.getElementById(app.id)) return;
+  function build() {
+    if (document.getElementById("kw-ps5-icon")) return;
 
     var wrap = el(
       "button",
       [
+        "position:fixed",
+        "right:16px",
+        "bottom:56px",
+        "z-index:2147483000",
         "display:flex",
         "flex-direction:column",
         "align-items:center",
@@ -69,10 +56,10 @@
         "cursor:pointer"
       ].join(";")
     );
-    wrap.id = app.id;
+    wrap.id = "kw-ps5-icon";
     wrap.type = "button";
-    wrap.title = app.caption;
-    wrap.setAttribute("aria-label", app.caption);
+    wrap.title = "PlayMyPS5";
+    wrap.setAttribute("aria-label", "PlayMyPS5");
 
     var face = el(
       "span",
@@ -88,15 +75,15 @@
         "font-size:13px",
         "font-weight:700",
         "letter-spacing:.4px",
-        "background:" + app.background
+        "background:linear-gradient(180deg,#1f6feb,#0b3d91)"
       ].join(";"),
-      app.face
+      "PS5"
     );
 
     var cap = el(
       "span",
       "font-size:10px;line-height:1;padding:2px 5px;border-radius:6px;background:rgba(0,0,0,.55);white-space:nowrap",
-      app.caption
+      "PlayMyPS5"
     );
 
     wrap.appendChild(face);
@@ -104,35 +91,17 @@
 
     wrap.addEventListener("click", function (event) {
       event.stopPropagation();
-      openApp(app);
+      openPs5();
     });
 
-    var dock = document.getElementById("kw-dock");
-    if (!dock) {
-      dock = el(
-        "div",
-        [
-          "position:fixed",
-          "right:16px",
-          "bottom:56px",
-          "z-index:2147483000",
-          "display:flex",
-          "align-items:flex-end",
-          "gap:10px"
-        ].join(";")
-      );
-      dock.id = "kw-dock";
-      document.body.appendChild(dock);
-    }
-
-    dock.appendChild(wrap);
+    document.body.appendChild(wrap);
   }
 
   function start() {
     try {
-      APPS.forEach(buildIcon);
+      build();
     } catch (err) {
-      if (window.console) console.warn("desktop icons: skipped", err);
+      if (window.console) console.warn("ps5 icon: skipped", err);
     }
   }
 
