@@ -21,6 +21,7 @@ self.addEventListener("activate", function (e) {
 
 self.addEventListener("fetch", function (event) {
   var req = event.request;
+  if (req.cache === "only-if-cached" && req.mode !== "same-origin") return;
   if (req.method !== "GET") return;
 
   var url = new URL(req.url);
@@ -28,8 +29,6 @@ self.addEventListener("fetch", function (event) {
 
   // The distro image is streamed with Range requests: leave it untouched.
   if (url.pathname.indexOf("/distros/") === 0) return;
-
-  var nav = req.mode === "navigate";
 
   event
     .respondWith(
@@ -53,11 +52,12 @@ self.addEventListener("fetch", function (event) {
           h.delete("content-encoding");
           h.delete("content-length");
           h.set("Cross-Origin-Resource-Policy", "cross-origin");
-          // The embedder policy has to be on every response, not just the page:
-          // Chrome refuses a worker script from a response without it
-          // (coep-frame-resource-needs-coep-header), and the kernel runs in one.
+          // A worker script is a frame resource: Chrome refuses one whose
+          // response lacks the embedder policy (coep-frame-resource-needs-
+          // coep-header), and the kernel itself runs in a worker, so both
+          // headers go on every response rather than only on pages.
           h.set("Cross-Origin-Embedder-Policy", "require-corp");
-          if (nav) h.set("Cross-Origin-Opener-Policy", "same-origin");
+          h.set("Cross-Origin-Opener-Policy", "same-origin");
           return new Response(res.body, {
             status: res.status,
             statusText: res.statusText,
