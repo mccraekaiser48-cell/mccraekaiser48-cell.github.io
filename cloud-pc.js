@@ -1,7 +1,7 @@
 /* Cloud PC launcher for the mirrored unkernel desktop.
- * Adds one button to the desktop that opens a small panel of real cloud GPU PCs.
- * No network calls, no dependencies, and every step is wrapped so a page change
- * can never take the desktop down with it.
+ * Adds one button to the desktop that opens a small panel of real cloud GPU PCs,
+ * sized for a big modern game. No network calls, no dependencies, and every step
+ * is wrapped so a page change can never take the desktop down with it.
  */
 (function () {
   "use strict";
@@ -15,24 +15,27 @@
       tag: "Full Windows desktop",
       url: "https://shadow.tech/",
       price: "from $37.99/mo (about $29/mo on a yearly plan)",
+      storage: "512 GB SSD included, expandable to 5 TB for an extra charge",
       detail:
-        "Real Windows 11 machine with an RTX-class GPU and 256\u2013512 GB SSD. 120\u2013210 hours a month, sessions of 4\u20138 hours, no queue. Install Steam and play anything you own."
+        "Real Windows 11 machine with an RTX-class GPU (Power plan: 20 GB VRAM, 28 GB RAM). 120\u2013210 hours a month, sessions of 4\u20138 hours, no queue. Install Steam and play anything you own."
+    },
+    {
+      name: "Maximum Settings",
+      tag: "1 TB of space",
+      url: "https://maximumsettings.com/",
+      price: "from about $7/mo (CA$9.95); the big rig is CA$29.95 \u2248 $22/mo",
+      storage: "Bare metal rig: 750 GB SSD + 4 TB hard drive",
+      detail:
+        "Dedicated cloud gaming PC with full desktop access and a daily allowance of hours. The bare-metal plan is an RX 7900 XTX with a Ryzen 9 \u2014 the cheapest way to get a big GPU and a terabyte of room."
     },
     {
       name: "airgpu",
       tag: "Pay by the hour",
       url: "https://airgpu.com/",
-      price: "from $0.65/hr, plus $3.50/mo per 50 GB of storage",
+      price: "from $0.65/hr; an RTX 4080-class card is about $1.20/hr",
+      storage: "storage billed on top: $3.50/mo per 50 GB, so 1 TB is about $70/mo",
       detail:
-        "No subscription \u2014 you buy credit and switch the machine on when you want it. A card similar to an RTX 4080 is about $1.20/hr. Good for a single evening on one big game."
-    },
-    {
-      name: "Maximum Settings",
-      tag: "Cheapest monthly",
-      url: "https://maximumsettings.com/",
-      price: "from about $7/mo (CA$9.95), extra time CA$0.35/hr",
-      detail:
-        "Dedicated cloud gaming PC with full desktop access and a daily allowance of hours (2 peak + 4 off-peak on the starter plan). Cheapest way to have a Windows PC waiting every day."
+        "No subscription \u2014 buy credit and switch the machine on when you want it. Cheap for one long evening, expensive if you keep a terabyte sitting there month after month."
     }
   ];
 
@@ -91,8 +94,8 @@
         "position:absolute",
         "right:0",
         "bottom:calc(100% + 10px)",
-        "width:min(360px,calc(100vw - 32px))",
-        "max-height:min(70vh,520px)",
+        "width:min(370px,calc(100vw - 32px))",
+        "max-height:min(74vh,560px)",
         "overflow:auto",
         "padding:14px",
         "border:1px solid rgba(255,255,255,.18)",
@@ -107,7 +110,15 @@
       el(
         "div",
         "color:#9aa4b2;margin-bottom:10px",
-        "A real Windows PC with a GPU, streamed into this tab. All three are paid \u2014 nobody offers this free, because the machine has to stay on for you."
+        "A real Windows PC with a GPU, streamed into this tab. All of these are paid \u2014 nobody offers this free, because the machine has to stay on for you."
+      )
+    );
+
+    panel.appendChild(
+      el(
+        "div",
+        "padding:9px 10px;margin-bottom:10px;border-radius:10px;background:#131b26;border:1px solid rgba(255,255,255,.1);color:#c8d2e0;font-size:12px",
+        "What a game the size of GTA VI wants: about 200 GB free, 16 GB of RAM or more, and an RTX 4080-class card. Shadow Power and the Maximum Settings bare-metal rig clear that. Your Chromebook only draws the picture, so a weak laptop is fine."
       )
     );
 
@@ -133,7 +144,8 @@
       head.appendChild(el("span", "font-weight:700", p.name));
       head.appendChild(el("span", "font-size:11px;color:#8ad6a0;white-space:nowrap", p.tag));
       card.appendChild(head);
-      card.appendChild(el("div", "font-size:11px;color:#c9a227;margin:2px 0 4px", p.price));
+      card.appendChild(el("div", "font-size:11px;color:#c9a227;margin:2px 0 2px", p.price));
+      card.appendChild(el("div", "font-size:11px;color:#8ea3bb;margin-bottom:4px", p.storage));
       card.appendChild(el("div", "font-size:12px;color:#aab3c0", p.detail));
 
       panel.appendChild(card);
@@ -143,7 +155,7 @@
       el(
         "div",
         "font-size:11px;color:#7b8593;margin-top:6px",
-        "For a heavy new game, an hour on airgpu costs less than a month anywhere else. For playing most evenings, Maximum Settings or Shadow wins. Opening these links does nothing until you sign up."
+        "None of this puts GTA VI on screen today: there is still no playable PC build, and any page offering a \u201cGTA VI PC installer\u201d is pushing malware. Opening these links does nothing until you sign up."
       )
     );
 
