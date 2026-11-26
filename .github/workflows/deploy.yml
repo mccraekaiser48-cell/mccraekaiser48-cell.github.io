@@ -1,4 +1,4 @@
-name: Deploy Terbium to GitHub Pages
+name: Deploy unkernel to GitHub Pages
 
 on:
   push:
@@ -18,111 +18,72 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - name: Fetch Terbium source
-        run: git clone --depth 1 https://github.com/TerbiumOS/web-v2.git app
-
-      - name: Build static site
-        working-directory: app
+      - name: Mirror the built site at the domain root
         run: |
-          npm i --no-audit --no-fund
-          npm run build-static
-          touch dist/.nojekyll
+          set -uo pipefail
+          base="https://unkernel.dev"
+          out="public"
+          mkdir -p "$out"
+          curl -fsSL "$base/" -o "$out/index.html"
 
-      - name: Make the first screen appear sooner
-        working-directory: app
-        run: |
-          cat > speedup.py <<'PY'
-          #!/usr/bin/env python3
-          """Post-process a Terbium static build to make the first screen appear sooner.
+          grab() {
+            rel="$1"
+            [ -f "$out/$rel" ] && return 0
+            mkdir -p "$out/$(dirname "$rel")"
+            if curl -fsSL "$base/$rel" -o "$out/$rel"; then return 0; fi
+            rm -f "$out/$rel"
+            return 1
+          }
 
-          1. Drops the Google Tag Manager / Analytics scripts (two third-party requests
-             that are blocked or slow on filtered school networks).
-          2. Preloads the main module and the stylesheet so the browser starts fetching
-             them while it is still parsing the HTML.
-          3. Puts a lightweight "Starting Terbium" splash inside #root, which React
-             clears the moment it mounts, so the screen is never an empty black page
-             while ~2 MB of JavaScript arrives.
+          for f in \
+            assets/ui-g2aqRuz9.js assets/index-CGNAw_dm.js assets/keys-D9A6ZEDy.js \
+            assets/index-D90Pw360.css assets/boot-rxV9bt3R.css assets/boot-Ba911jvc.js \
+            assets/wasm-inline-DmWnZdLT.js \
+            assets/geist-latin-wght-normal-BgDaEnEv.woff2 \
+            assets/geist-mono-latin-wght-normal-XN7g48iV.woff2 \
+            assets/geist-mono-symbols2-wght-normal-CO5SzqOn.woff2 \
+            assets/logo-Cv3wHR3E.svg manifest.webmanifest apple-touch-icon.png; do
+            grab "$f" || echo "optional missing: $f"
+          done
 
-          Usage: speedup.py <dist-directory>
-          """
-          import re
-          import sys
-          import pathlib
+          # Follow references so nothing the loader fetches at runtime is left behind.
+          queue="index.html"
+          seen=" "
+          for round in 1 2 3 4 5; do
+            next=""
+            for file in $queue; do
+              [ -f "$out/$file" ] || continue
+              refs=$(
+                grep -ohE '(src|href)="/[^"]+"' "$out/$file" 2>/dev/null | sed 's/.*="//;s/"$//'
+                grep -ohE '/assets/[A-Za-z0-9._/-]+' "$out/$file" 2>/dev/null
+                grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}\.(js|mjs|css|wasm|woff2|png|svg)' "$out/$file" 2>/dev/null
+              )
+              for ref in $refs; do
+                rel="${ref#/}"
+                [ -z "$rel" ] && continue
+                case "$rel" in *.js|*.mjs|*.css|*.wasm|*.woff2|*.png|*.svg) : ;; *) continue ;; esac
+                case " $seen " in *" $rel "*) continue ;; esac
+                seen="$seen$rel "
+                [ -f "$out/$rel" ] && continue
+                if grab "$rel"; then
+                  next="$next $rel"
+                else
+                  alt="assets/$(basename "$rel")"
+                  if [ "$rel" != "$alt" ] && grab "$alt"; then next="$next $alt"; fi
+                fi
+              done
+            done
+            queue="$next"
+            [ -z "$queue" ] && break
+          done
 
-          dist = pathlib.Path(sys.argv[1])
-          page = dist / "index.html"
-          if not page.is_file():
-              sys.exit(f"no index.html in {dist}")
-
-          html = page.read_text(encoding="utf-8")
-          before = len(html)
-
-          # 1. Analytics: comment, external script tag, and the inline gtag config block.
-          html = re.sub(r"\s*<!--\s*Google tag \(gtag\.js\)\s*-->", "", html)
-          html = re.sub(r'\s*<script[^>]*googletagmanager\.com[^>]*>\s*</script>', "", html)
-          html = re.sub(r"\s*<script>\s*window\.dataLayer.*?</script>", "", html, flags=re.S)
-
-          # 2. Resource hints for the two files that gate the first paint.
-          hints = []
-          mod = re.search(r'<script[^>]*type="module"[^>]*src="([^"]+)"', html)
-          stylesheet = re.search(r'<link[^>]*rel="stylesheet"[^>]*href="([^"]+)"', html)
-          if mod:
-              hints.append(f'<link rel="modulepreload" href="{mod.group(1)}">')
-          if stylesheet:
-              hints.append(f'<link rel="preload" as="style" href="{stylesheet.group(1)}">')
-          if hints:
-              block = "\n    " + "\n    ".join(hints)
-              html = html.replace("</head>", block + "\n  </head>", 1)
-
-          # 3. Move the blocking /tfs/tfs.js script and the filesystem bootstrap from the
-          #    <head> to just after #root. A classic script in <head> blocks the first
-          #    paint, so the screen stays blank until it has downloaded; from the end of
-          #    the body it still runs before the deferred module, but the browser can
-          #    draw the page while it arrives.
-          tfs_tag = re.search(r'\s*<script src="/tfs/tfs\.js"></script>', html)
-          tfs_init = re.search(r'\s*<script>\s*\(async \(\) => \{.*?\}\)\(\);\s*</script>', html, re.S)
-          moved = ""
-          if tfs_tag and tfs_init:
-              moved = tfs_tag.group(0) + tfs_init.group(0)
-              html = html.replace(moved, "", 1)
-
-          # 4. Splash screen. It lives inside #root, so React's first render replaces it.
-          splash = (
-              '<div id="root" class="flex flex-col h-full bg-[#0e0e0e] overflow-hidden">'
-              '<div style="position:fixed;inset:0;display:flex;flex-direction:column;'
-              'align-items:center;justify-content:center;gap:16px;background:#0e0e0e;'
-              "color:#cfcfcf;font:600 15px/1.4 ui-sans-serif,system-ui,sans-serif;"
-              'letter-spacing:.04em">'
-              '<img src="/tb.svg" alt="" width="96" height="96" style="opacity:.9">'
-              "<div>Starting Terbium\u2026</div>"
-              "</div></div>"
-          )
-          html, swapped = re.subn(r'<div id="root"[^>]*>\s*</div>', splash, html, count=1)
-          if not swapped:
-              print("warning: #root placeholder not found, splash not added")
-
-          anchor = '<script src="/scram/scramjet.js"></script>'
-          if moved and anchor in html:
-              html = html.replace(anchor, moved.strip() + "\n    " + anchor, 1)
-          else:
-              print("warning: could not relocate the filesystem scripts")
-
-          page.write_text(html, encoding="utf-8")
-          print(f"index.html: {before} -> {len(html)} bytes")
-          print(f"preload hints: {len(hints)}  splash: {bool(swapped)}  fs scripts moved: {bool(moved)}")
-          PY
-          python3 speedup.py dist
-          grep -q "Starting Terbium" dist/index.html
-          grep -rl 'allowInvalidJs:!1' dist/assets dist/scram | xargs -r sed -i 's/allowInvalidJs:!1/allowInvalidJs:!0/g'
-          sed -i 's/allowInvalidJs: false/allowInvalidJs: true/' dist/apps/settings.tapp/internet.tsl
+          # At the domain root no path rewriting is needed: /assets/... is correct as-is.
+          echo "mirrored $(find "$out" -type f | wc -l) files, $(du -sh "$out" | cut -f1)"
+          ls -la "$out/assets" | head -20
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: app/dist
+          path: public
 
   deploy:
     needs: build
