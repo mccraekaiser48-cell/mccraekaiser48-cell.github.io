@@ -1,8 +1,9 @@
 /* Desktop launcher for the mirrored unkernel desktop.
- * One app icon: PlayMyPS5, which opens in its own window (or this tab if the
- * browser blocks pop-ups). The desktop page is cross-origin isolated, and an
- * isolated page refuses to frame a third-party site, so an in-page window is
- * not possible without switching the desktop's isolation off.
+ * One app icon: PS5Upload, whose Play Together lets a host hand a friend a
+ * controller through a browser, with no queue and no service timer. It opens
+ * in its own window (or this tab when the browser blocks pop-ups): the desktop
+ * page is cross-origin isolated, and an isolated page refuses to frame a
+ * third-party site.
  * No dependencies, and every step is wrapped so a page change can never take
  * the desktop down.
  */
@@ -12,7 +13,7 @@
   if (window.__kwPs5Icon) return;
   window.__kwPs5Icon = true;
 
-  var PS5_URL = "https://playmyps5.com/";
+  var PS5_URL = "https://ps5upload.phantomptr.com/#play";
 
   function el(tag, styles, text) {
     var node = document.createElement(tag);
@@ -24,7 +25,7 @@
   function openPs5() {
     var win = null;
     try {
-      win = window.open(PS5_URL, "playmyps5", "popup=yes,width=1280,height=820,noopener");
+      win = window.open(PS5_URL, "ps5upload", "popup=yes,width=1280,height=820,noopener");
     } catch (err) {
       win = null;
     }
@@ -58,8 +59,8 @@
     );
     wrap.id = "kw-ps5-icon";
     wrap.type = "button";
-    wrap.title = "PlayMyPS5";
-    wrap.setAttribute("aria-label", "PlayMyPS5");
+    wrap.title = "PS5Upload - Play Together";
+    wrap.setAttribute("aria-label", "PS5Upload");
 
     var face = el(
       "span",
@@ -72,7 +73,7 @@
         "border-radius:12px",
         "border:1px solid rgba(255,255,255,.22)",
         "box-shadow:0 6px 18px rgba(0,0,0,.45)",
-        "font-size:13px",
+        "font-size:12px",
         "font-weight:700",
         "letter-spacing:.4px",
         "background:linear-gradient(180deg,#1f6feb,#0b3d91)"
@@ -83,7 +84,7 @@
     var cap = el(
       "span",
       "font-size:10px;line-height:1;padding:2px 5px;border-radius:6px;background:rgba(0,0,0,.55);white-space:nowrap",
-      "PlayMyPS5"
+      "Play Together"
     );
 
     wrap.appendChild(face);
