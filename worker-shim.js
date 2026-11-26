@@ -7,9 +7,15 @@
 // A worker built from a blob URL is created locally instead of fetched, and it
 // inherits the page's isolation. Importing the real script by its absolute URL
 // keeps every relative import inside it resolving as it did before.
+//
+// This only applies to an isolated page: without the isolation there is no
+// embedder policy to trip over and a plain worker loads normally, so browsers
+// that never got the isolation keep the untouched path.
 (function () {
   var Native = window.Worker;
   if (!Native) return;
+  if (!window.crossOriginIsolated) return;
+  if (!navigator.serviceWorker || !navigator.serviceWorker.controller) return;
 
   function fromBlob(abs, opts) {
     var src =
