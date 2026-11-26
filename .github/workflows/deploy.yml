@@ -32,30 +32,32 @@ jobs:
             rel="$1"
             if [ -f "$out/$rel" ]; then return 0; fi
             mkdir -p "$out/$(dirname "$rel")"
-            if curl -fsSL "$base/$rel" -o "$out/$rel"; then return 0; fi
+            if curl -fsSL --retry 3 --retry-delay 2 "$base/$rel" -o "$out/$rel"; then return 0; fi
             rm -f "$out/$rel"
             return 1
           }
 
           # Crawl every reference, starting from index.html, so hashed filenames
-          # never have to be hardcoded.
+          # never have to be hardcoded. distros/ holds the root filesystems.
           queue="index.html"
           seen=" "
-          for round in 1 2 3 4 5 6 7; do
+          for round in 1 2 3 4 5 6 7 8; do
             next=""
             for file in $queue; do
               if [ ! -f "$out/$file" ]; then continue; fi
               refs=$(
                 grep -ohE '(src|href)="/[^"]+"' "$out/$file" 2>/dev/null | sed 's/.*="//;s/"$//'
                 grep -ohE '"?/?assets/[A-Za-z0-9._/-]+' "$out/$file" 2>/dev/null
-                grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}\.(js|mjs|css|wasm|woff2|png|svg)' "$out/$file" 2>/dev/null
+                grep -ohE '"?/?distros/[A-Za-z0-9._-]+' "$out/$file" 2>/dev/null
+                grep -ohE 'wasm-inline[A-Za-z0-9._-]*\.js' "$out/$file" 2>/dev/null
+                grep -ohE '[A-Za-z0-9._-]+-[A-Za-z0-9_-]{6,}\.(js|mjs|css|wasm|woff2|png|svg|erofs)' "$out/$file" 2>/dev/null
               )
               for ref in $refs; do
                 rel=$(printf '%s' "$ref" | tr -d "\"'")
                 rel="${rel#./}"
                 rel="${rel#/}"
                 if [ -z "$rel" ]; then continue; fi
-                case "$rel" in *.js|*.mjs|*.css|*.wasm|*.woff2|*.png|*.svg|*.webmanifest) : ;; *) continue ;; esac
+                case "$rel" in *.js|*.mjs|*.css|*.wasm|*.woff2|*.png|*.svg|*.webmanifest|*.erofs) : ;; *) continue ;; esac
                 case " $seen " in *" $rel "*) continue ;; esac
                 seen="$seen$rel "
                 if [ -f "$out/$rel" ]; then continue; fi
@@ -72,14 +74,25 @@ jobs:
             if [ -z "$queue" ]; then break; fi
           done
 
+          # Belt and braces: anything the crawl could not reach from a string literal.
+          for extra in assets/wasm-inline-DmWnZdLT.js distros/debian-18e863fd85a63b26.erofs distros/alpine-4253fdcaf3fe289f.erofs; do
+            grab "$extra" || echo "optional missing: $extra"
+          done
+
           touch "$out/.nojekyll"
 
           # At the domain root no path rewriting is needed: /assets/... is correct as-is.
           echo "mirrored $(find "$out" -type f | wc -l) files, $(du -sh "$out" | cut -f1)"
           echo "boot modules:"
           find "$out/assets" -name 'boot-*' -printf '%f %s bytes\n'
+          echo "distros:"
+          find "$out/distros" -type f -printf '%f %s bytes\n' 2>/dev/null
           if [ -z "$(find "$out/assets" -name 'boot-*.js' -print -quit)" ]; then
             echo "boot module missing"
+            exit 1
+          fi
+          if [ -z "$(find "$out/distros" -name '*.erofs' -print -quit 2>/dev/null)" ]; then
+            echo "distro image missing"
             exit 1
           fi
           echo "mirror ok"
