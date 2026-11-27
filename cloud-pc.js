@@ -1,7 +1,6 @@
 /* Desktop launcher for the mirrored unkernel desktop.
- * One app icon: KytyPS5 Web, a WebAssembly build of the Kyty PS5 emulator that
- * runs in the browser at shubin123.github.io/kytyps5_web. Drawn with the four
- * PlayStation-style glyphs so it reads as a console emulator at a glance.
+ * One app icon: GTA VI, opening the bare video player of the free shared
+ * console's stream. No chat, no queue, no page furniture, just the game.
  * It opens in its own window, or this tab when the browser blocks pop-ups.
  * No dependencies, and every step is wrapped so a page change can never take
  * the desktop down.
@@ -12,26 +11,7 @@
   if (window.__kwPs5Icon) return;
   window.__kwPs5Icon = true;
 
-  var PS5_URL = "https://shubin123.github.io/kytyps5_web/";
-
-  var ICON_SVG = [
-    '<svg viewBox="0 0 48 48" width="46" height="46" role="img" aria-label="PS5 emulator" xmlns="http://www.w3.org/2000/svg">',
-    '<defs>',
-    '<linearGradient id="kwBg" x1="0" y1="0" x2="0" y2="1">',
-    '<stop offset="0" stop-color="#1b2f6b"/>',
-    '<stop offset="1" stop-color="#070b18"/>',
-    '</linearGradient>',
-    '</defs>',
-    '<rect x="1" y="1" width="46" height="46" rx="11" fill="url(#kwBg)" stroke="rgba(255,255,255,.28)"/>',
-    '<g fill="none" stroke="#9dc0ff" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round">',
-    '<path d="M15 12.5 L19.5 20.5 L10.5 20.5 Z"/>',
-    '<circle cx="33" cy="16.5" r="4"/>',
-    '<path d="M10.5 27.5 L19.5 27.5 M15 23 L15 32"/>',
-    '<rect x="29" y="23.5" width="8" height="8" rx="1.4"/>',
-    '</g>',
-    '<text x="24" y="42.5" text-anchor="middle" font-family="system-ui,-apple-system,Segoe UI,Roboto,sans-serif" font-size="7" font-weight="700" letter-spacing="1.4" fill="#cfdcff">PS5</text>',
-    '</svg>'
-  ].join("");
+  var GTA_URL = "https://player.twitch.tv/?channel=playmyps5&parent=mccraekaiser48-cell.github.io&autoplay=true";
 
   function el(tag, styles, text) {
     var node = document.createElement(tag);
@@ -40,15 +20,15 @@
     return node;
   }
 
-  function openPs5() {
+  function openGta() {
     var win = null;
     try {
-      win = window.open(PS5_URL, "kytyps5web", "popup=yes,width=1280,height=820,noopener");
+      win = window.open(GTA_URL, "gtavi", "popup=yes,width=1280,height=760,noopener");
     } catch (err) {
       win = null;
     }
     if (!win) {
-      window.location.href = PS5_URL;
+      window.location.href = GTA_URL;
     }
   }
 
@@ -78,26 +58,36 @@
     );
     wrap.id = "kw-ps5-icon";
     wrap.type = "button";
-    wrap.title = "PS5 emulator - Kyty web";
-    wrap.setAttribute("aria-label", "PS5 emulator");
+    wrap.title = "GTA VI - live";
+    wrap.setAttribute("aria-label", "GTA VI");
 
     var face = el(
       "span",
       [
         "display:flex",
+        "flex-direction:column",
         "align-items:center",
         "justify-content:center",
         "width:46px",
         "height:46px",
-        "pointer-events:none"
+        "border-radius:12px",
+        "border:1px solid rgba(255,255,255,.24)",
+        "background:linear-gradient(160deg,#ff8a3d,#c2185b 55%,#2b1055)",
+        "font-size:11px",
+        "font-weight:800",
+        "letter-spacing:.6px",
+        "line-height:1.05",
+        "color:#fff",
+        "text-shadow:0 1px 3px rgba(0,0,0,.55)"
       ].join(";")
     );
-    face.innerHTML = ICON_SVG;
+    face.appendChild(el("span", "font-size:8px;opacity:.9", "GTA"));
+    face.appendChild(el("span", "font-size:15px", "VI"));
 
     var cap = el(
       "span",
       "font-size:10px;line-height:1;padding:2px 5px;border-radius:6px;background:rgba(0,0,0,.6);white-space:nowrap",
-      "PS5 Emu"
+      "GTA VI"
     );
 
     wrap.appendChild(face);
@@ -105,7 +95,7 @@
 
     wrap.addEventListener("click", function (event) {
       event.stopPropagation();
-      openPs5();
+      openGta();
     });
 
     document.body.appendChild(wrap);
@@ -115,7 +105,7 @@
     try {
       build();
     } catch (err) {
-      if (window.console) console.warn("ps5 icon: skipped", err);
+      if (window.console) console.warn("gta icon: skipped", err);
     }
   }
 
