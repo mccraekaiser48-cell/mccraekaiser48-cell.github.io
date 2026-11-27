@@ -1,9 +1,9 @@
 /* Desktop launcher for the mirrored unkernel desktop.
- * One app icon: the free shared PS5 at playmyconsole.com (the newer domain of
- * the PlayMyPS5 project, whose host network makes the queue shorter). It opens
- * in its own window, or this tab when the browser blocks pop-ups: the desktop
- * page is cross-origin isolated, and an isolated page refuses to frame a
- * third-party site.
+ * One app icon: GamerNova, the community around PSRemotePlayTogether where a
+ * host shares a PS5 or PS4 and friends join from a browser by invite link.
+ * It opens in its own window, or this tab when the browser blocks pop-ups: the
+ * desktop page is cross-origin isolated, and an isolated page refuses to frame
+ * a third-party site.
  * No dependencies, and every step is wrapped so a page change can never take
  * the desktop down.
  */
@@ -13,7 +13,7 @@
   if (window.__kwPs5Icon) return;
   window.__kwPs5Icon = true;
 
-  var PS5_URL = "https://playmyconsole.com/";
+  var PS5_URL = "https://gamernova.net/";
 
   function el(tag, styles, text) {
     var node = document.createElement(tag);
@@ -25,7 +25,7 @@
   function openPs5() {
     var win = null;
     try {
-      win = window.open(PS5_URL, "cloudps5", "popup=yes,width=1280,height=820,noopener");
+      win = window.open(PS5_URL, "gamernova", "popup=yes,width=1280,height=820,noopener");
     } catch (err) {
       win = null;
     }
@@ -59,8 +59,8 @@
     );
     wrap.id = "kw-ps5-icon";
     wrap.type = "button";
-    wrap.title = "Cloud PS5 - playmyconsole.com";
-    wrap.setAttribute("aria-label", "Cloud PS5");
+    wrap.title = "GamerNova - gamernova.net";
+    wrap.setAttribute("aria-label", "GamerNova");
 
     var face = el(
       "span",
@@ -73,18 +73,18 @@
         "border-radius:12px",
         "border:1px solid rgba(255,255,255,.22)",
         "box-shadow:0 6px 18px rgba(0,0,0,.45)",
-        "font-size:13px",
+        "font-size:12px",
         "font-weight:700",
         "letter-spacing:.4px",
-        "background:linear-gradient(180deg,#1f6feb,#0b3d91)"
+        "background:linear-gradient(180deg,#8c52ff,#4b1fa8)"
       ].join(";"),
-      "PS5"
+      "GN"
     );
 
     var cap = el(
       "span",
       "font-size:10px;line-height:1;padding:2px 5px;border-radius:6px;background:rgba(0,0,0,.55);white-space:nowrap",
-      "Cloud PS5"
+      "GamerNova"
     );
 
     wrap.appendChild(face);
