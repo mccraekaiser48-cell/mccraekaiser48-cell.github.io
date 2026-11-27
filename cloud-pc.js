@@ -1,6 +1,7 @@
 /* Desktop launcher for the mirrored unkernel desktop.
- * One app icon: GamerNova, the community around PSRemotePlayTogether where a
- * host shares a PS5 or PS4 and friends join from a browser by invite link.
+ * One app icon: the GamerNova rooms page, where PSRemotePlayTogether hosts
+ * share a PS5, PS4, PC or Xbox and a visitor joins from the browser with no
+ * install and no account.
  * It opens in its own window, or this tab when the browser blocks pop-ups: the
  * desktop page is cross-origin isolated, and an isolated page refuses to frame
  * a third-party site.
@@ -13,7 +14,7 @@
   if (window.__kwPs5Icon) return;
   window.__kwPs5Icon = true;
 
-  var PS5_URL = "https://gamernova.net/";
+  var PS5_URL = "https://play.gamernova.net/";
 
   function el(tag, styles, text) {
     var node = document.createElement(tag);
@@ -59,8 +60,8 @@
     );
     wrap.id = "kw-ps5-icon";
     wrap.type = "button";
-    wrap.title = "GamerNova - gamernova.net";
-    wrap.setAttribute("aria-label", "GamerNova");
+    wrap.title = "GamerNova rooms - play.gamernova.net";
+    wrap.setAttribute("aria-label", "GamerNova rooms");
 
     var face = el(
       "span",
